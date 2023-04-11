@@ -111,7 +111,7 @@ class KBHit:
 
 
 # Test    
-# Z:122 /X:120 /A:97 /S:115 /Q:113 /W:119 /UP:72 /DWN:80
+# Z:122 /X:120 /A:97 /S:115 /Q:113 /W:119 /UP:72 /DWN:80 R:77 L75
 if __name__ == "__main__":
 
     kb = KBHit()
