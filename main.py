@@ -1,4 +1,4 @@
-import dynamixel_classes_for_windows as dyna 
+import dynamixel_classes_for_ubuntu as dyna 
 import kbhit
 
 dxl = dyna.Dynamixel("COM9",57600,1)

@@ -1,16 +1,13 @@
-"""
-Windows環境用Dynamixel制御クラス
-ポートの占有特性がUbuntuと異なり1モーター1クラスができないため、id周りが少し異なる。
-"""
-
 import os
 import msvcrt
+import sys, tty, termios
 from dynamixel_sdk import *  # Uses Dynamixel SDK library
 
+
 class Dynamixel:  # This class is specified in X_series
-    def __init__(self, port, baudrate):
+    def __init__(self, port, baudrate, id):
         """インスタンス関数
-        ポートを指定して通信を確立する
+        IDを指定して通信を確立する
 
         Parameters
         ----------
@@ -18,9 +15,22 @@ class Dynamixel:  # This class is specified in X_series
             ポート名 (Windowsは通常「"COM?"」)
         baudrate : int
             通信速度 (通常 )
+        id : int
         """
-        def getch():
-            return msvcrt.getch().decode()
+        if os.name == "nt":
+            def getch():
+                return msvcrt.getch().decode()
+         else:
+            fd = sys.stdin.fileno()
+            old_settings = termios.tcgetattr(fd)
+
+            def getch():
+                try:
+                    tty.setraw(sys.stdin.fileno())
+                    ch = sys.stdin.read(1)
+                finally:
+                    termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
+                return ch
 
 
         # ********* DYNAMIXEL Model definition *********
@@ -44,6 +54,9 @@ class Dynamixel:  # This class is specified in X_series
         # DYNAMIXEL Protocol Version (1.0 / 2.0)
         # https://emanual.robotis.com/docs/en/dxl/protocol2/
         self.__PROTOCOL_VERSION = 2.0
+
+        # Factory default ID of all DYNAMIXEL is 1
+        self.__ID = id
 
         # Use the actual port assigned to the U2D2.
         # ex) Windows: "COM*", Linux: "/dev/ttyUSB*", Mac: "/dev/tty.usbserial-*"
@@ -86,17 +99,12 @@ class Dynamixel:  # This class is specified in X_series
 
         
 
-    def set_mode_velocity(self,id):
+    def set_mode_velocity(self):
         """速度制御モードに設定
-
-        Parameter
-        ----------
-        id : int
-            IDを指定
         """
         dxl_comm_result, dxl_error = self.__packetHandler.write1ByteTxRx(
             self.__portHandler,
-            id,
+            self.__ID,
             self.__ADDR_OPERATION_MODE,
             self.__VELOCITY_MODE,
         )
@@ -109,17 +117,12 @@ class Dynamixel:  # This class is specified in X_series
         self.write_velocity(0)
 
 
-    def set_mode_position(self,id):
+    def set_mode_position(self):
         """角度制御モードに設定
-
-        Parameter
-        ----------
-        id : int
-            IDを指定
         """
         dxl_comm_result, dxl_error = self.__packetHandler.write1ByteTxRx(
             self.__portHandler,
-            id,
+            self.__ID,
             self.__ADDR_OPERATION_MODE,
             self.__POSITION_MODE,
         )
@@ -128,17 +131,12 @@ class Dynamixel:  # This class is specified in X_series
         elif dxl_error != 0:
             print("%s" % self.__packetHandler.getRxPacketError(dxl_error))
 
-    def set_mode_ex_position(self,id):
+    def set_mode_ex_position(self):
         """拡張角度制御モードに設定
-
-        Parameter
-        ----------
-        id : int
-            IDを指定
         """
         dxl_comm_result, dxl_error = self.__packetHandler.write1ByteTxRx(
             self.__portHandler,
-            id,
+            self.__ID,
             self.__ADDR_OPERATION_MODE,
             self.__EX_POSITION_MODE,
         )
@@ -147,20 +145,17 @@ class Dynamixel:  # This class is specified in X_series
         elif dxl_error != 0:
             print("%s" % self.__packetHandler.getRxPacketError(dxl_error))
 
-    def set_max_velocity(self,id,max_velocity):
+    def set_max_velocity(self,max_velocity):
         """速度制御時最大回転速度を設定
 
         Parameters
         ------------
-        id : int
-            IDを指定
         max_velocity : int
             最大回転速度 (通常265)
-        
         """
         dxl_comm_result, dxl_error = self.__packetHandler.write4ByteTxRx(
             self.__portHandler,
-            id,
+            self.__ID,
             self.__ADDR_VELOCITY_LIMIT,
             max_velocity,
         )
@@ -170,20 +165,18 @@ class Dynamixel:  # This class is specified in X_series
             print("%s" % self.__packetHandler.getRxPacketError(dxl_error))
         print("SET MAX VELOCITY")
 
-    def set_min_max_position(self,id,min_position,max_position):
+    def set_min_max_position(self,min_position,max_position):
         """角度制御時最小最大位置を設定
 
-        Parameter
-        ----------
-        id : int
-            IDを指定
+        Parameters
+        -----------
         min_position : 
             最小位置 (通常 0)
         max_position : 
             最大位置 (通常 4095)
         """
         # Write Min Position Limit
-        dxl_comm_result, dxl_error = self.__packetHandler.write4ByteTxRx(self.__portHandler, id, self.__ADDR_MINIMUM_POSITION, min_position)
+        dxl_comm_result, dxl_error = self.__packetHandler.write4ByteTxRx(self.__portHandler, self.__ID, self.__ADDR_MINIMUM_POSITION, min_position)
         if dxl_comm_result != COMM_SUCCESS:
             print("%s" % self.__packetHandler.getTxRxResult(dxl_comm_result))
         elif dxl_error != 0:
@@ -191,7 +184,7 @@ class Dynamixel:  # This class is specified in X_series
         print("SET MIN POSITION")
 
         # Write Max Position Limit
-        dxl_comm_result, dxl_error = self.__packetHandler.write4ByteTxRx(self.__portHandler, id, self.__ADDR_MAXIMUM_POSITION, max_position)
+        dxl_comm_result, dxl_error = self.__packetHandler.write4ByteTxRx(self.__portHandler, self.__ID, self.__ADDR_MAXIMUM_POSITION, max_position)
         if dxl_comm_result != COMM_SUCCESS:
             print("%s" % self.__packetHandler.getTxRxResult(dxl_comm_result))
         elif dxl_error != 0:
@@ -201,18 +194,13 @@ class Dynamixel:  # This class is specified in X_series
     
 
 
-    def enable_torque(self,id):
+    def enable_torque(self):
         """トルクをオンにする
-
-        Parameter
-        ----------
-        id : int
-            IDを指定
         """
         # Enable Dynamixel Torque
         dxl_comm_result, dxl_error = self.__packetHandler.write1ByteTxRx(
             self.__portHandler,
-            id,
+            self.__ID,
             self.__ADDR_TORQUE_ENABLE,
             self.__TORQUE_ENABLE,
         )
@@ -221,17 +209,12 @@ class Dynamixel:  # This class is specified in X_series
         elif dxl_error != 0:
             print("%s" % self.__packetHandler.getRxPacketError(dxl_error))
 
-    def disable_torque(self,id):
+    def disable_torque(self):
         """トルクをオフにする
-
-        Parameter
-        ----------
-        id : int
-            IDを指定
         """
         dxl_comm_result, dxl_error = self.__packetHandler.write1ByteTxRx(
             self.__portHandler,
-            id,
+            self.__ID,
             self.__ADDR_TORQUE_ENABLE,
             self.__TORQUE_DISABLE,
         )
@@ -240,19 +223,17 @@ class Dynamixel:  # This class is specified in X_series
         elif dxl_error != 0:
             print("%s" % self.__packetHandler.getRxPacketError(dxl_error))
 
-    def write_velocity(self,id, vel):
+    def write_velocity(self, vel):
         """目標回転速度を送信する
 
-        Parameter
-        ----------
-        id : int
-            IDを指定
+        Parameters
+        --------
         vel : int
             最大速度以下の速度を指定する (ex. -128 ~ 128 )
         """
         dxl_comm_result, dxl_error = self.__packetHandler.write4ByteTxRx(
             self.__portHandler,
-            id,
+            self.__ID,
             self.__ADDR_GOAL_VELOCITY,
             vel,
         )
@@ -261,15 +242,10 @@ class Dynamixel:  # This class is specified in X_series
         elif dxl_error != 0:
             print("%s" % self.__packetHandler.getRxPacketError(dxl_error))
         print("SET POSITION")
-        print("[ID:%03d]  GoalVel:%03d" % (id, vel))
+        print("[ID:%03d]  GoalVel:%03d" % (self.__ID, vel))
 
-    def read_velocity(self,id):
+    def read_velocity(self):
         """現在回転速度を受信する
-
-        Parameter
-        ----------
-        id : int
-            IDを指定
 
         Returns
         -------
@@ -281,7 +257,7 @@ class Dynamixel:  # This class is specified in X_series
             dxl_comm_result,
             dxl_error,
         ) = self.__packetHandler.read4ByteTxRx(
-            self.__portHandler, id, self.__ADDR_PRESENT_VELOCITY
+            self.__portHandler, self.__ID, self.__ADDR_PRESENT_VELOCITY
         )
         if dxl_comm_result != COMM_SUCCESS:
             print("%s" % self.__packetHandler.getTxRxResult(dxl_comm_result))
@@ -290,51 +266,44 @@ class Dynamixel:  # This class is specified in X_series
 
         print(
             "[ID:%03d]  PresVel:%03d"
-            % (id, dxl_present_velocity)
+            % (self.__ID, dxl_present_velocity)
         )
 
         return dxl_present_velocity
     
-    def write_position(self,id,pos):
+    def write_position(self,pos):
         """現在位置を受信する
 
-        Parameter
+        Parameters
         ----------
-        id : int
-            IDを指定
         pos : int
             目標位置 ( ex. 0 ~ 4095 )
             0(MinPositionLimit)~1(MaxPositionLimit)で示される位置の値
         """
-        dxl_comm_result, dxl_error = self.__packetHandler.write4ByteTxRx(self.__portHandler, id, self.__ADDR_GOAL_POSITION, pos)
+        dxl_comm_result, dxl_error = self.__packetHandler.write4ByteTxRx(self.__portHandler, self.__ID, self.__ADDR_GOAL_POSITION, pos)
         if dxl_comm_result != COMM_SUCCESS:
             print("%s" % self.__packetHandler.getTxRxResult(dxl_comm_result))
         elif dxl_error != 0:
             print("%s" % self.__packetHandler.getRxPacketError(dxl_error))
         print("SET POSITION")
-        print("[ID:%03d]  GoalPos:%03d" % (id, pos))
+        print("[ID:%03d]  GoalPos:%03d" % (self.__ID, pos))
     
     
-    def read_position(self,id): 
+    def read_position(self): 
         """現在の位置の読みとり
-
-        Parameter
-        ----------
-        id : int
-            IDを指定
 
         Returns
         -------
         dxl_present_position : int
             0~4095までの値
         """
-        dxl_present_position, dxl_comm_result, dxl_error = self.__packetHandler.read4ByteTxRx(self.__portHandler, id, self.__ADDR_PRESENT_POSITION)
+        dxl_present_position, dxl_comm_result, dxl_error = self.__packetHandler.read4ByteTxRx(self.__portHandler, self.__ID, self.__ADDR_PRESENT_POSITION)
         if dxl_comm_result != COMM_SUCCESS:
             print("%s" % self.__packetHandler.getTxRxResult(dxl_comm_result))
         elif dxl_error != 0:
             print("%s" % self.__packetHandler.getRxPacketError(dxl_error))
             
-        print("[ID:%03d]  PresPos:%03d" % (id, dxl_present_position))
+        print("[ID:%03d]  PresPos:%03d" % (self.__ID, dxl_present_position))
         
         return dxl_present_position
 
